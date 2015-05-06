@@ -1,0 +1,49 @@
+{
+    "appKeys": {
+        "KEY_CONDITIONS": 1,
+        "KEY_TEMPERATURE": 0
+    },
+    "capabilities": [
+        "location",
+        "configurable"
+    ],
+    "companyName": "Vestman.Net",
+    "longName": "F\u00f6rs\u00e4kringsfabriken",
+    "projectType": "native",
+    "resources": {
+        "media": [
+            {
+                "file": "images/Sff-PebbleBW1bit.png",
+                "name": "IMAGE_SFF",
+                "type": "png"
+            },
+            {
+                "file": "images/background.png",
+                "name": "IMAGE_BACKGROUND",
+                "type": "png"
+            },
+            {
+                "file": "fonts/perfect-dos-vga.ttf",
+                "name": "FONT_PERFECT_DOS_20",
+                "type": "font"
+            },
+            {
+                "file": "fonts/perfect-dos-vga.ttf",
+                "name": "FONT_PERFECT_DOS_48",
+                "type": "font"
+            }
+        ]
+    },
+    "sdkVersion": "3",
+    "shortName": "Tutorial 1",
+    "targetPlatforms": [
+        "aplite",
+        "basalt"
+    ],
+    "uuid": "224a3055-4207-42a6-abab-79c948b99c1d",
+    "versionCode": 1,
+    "versionLabel": "1.0",
+    "watchapp": {
+        "watchface": true
+    }
+}
