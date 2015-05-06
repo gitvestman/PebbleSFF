@@ -1,7 +1,6 @@
 #include <pebble.h>
-
-#define KEY_TEMPERATURE 0
-#define KEY_CONDITIONS 1
+#include "main.h"
+#include "battery.h"
 
 static Window *s_main_window;
 static TextLayer *s_time_layer;
@@ -9,6 +8,7 @@ static GFont s_time_font;
 static BitmapLayer *s_background_layer;
 static GBitmap *s_background_bitmap;
 static TextLayer *s_weather_layer;
+static TextLayer *s_date_layer;
 static GFont s_weather_font;
 
 // Store incoming information
@@ -22,40 +22,56 @@ static void main_window_load(Window *window) {
   s_background_layer = bitmap_layer_create(GRect(0, 0, 144, 168));
   bitmap_layer_set_background_color(s_background_layer, GColorBlack);
   bitmap_layer_set_bitmap(s_background_layer, s_background_bitmap);
-  bitmap_layer_set_alignment(s_background_layer, GAlignTop);
+  bitmap_layer_set_alignment(s_background_layer, GAlignTopLeft);
   layer_add_child(window_get_root_layer(window), bitmap_layer_get_layer(s_background_layer));
   
   // Create time textlayer
-  s_time_layer = text_layer_create(GRect(5,3,139,50));
+  s_time_layer = text_layer_create(GRect(5,3,109,40));
   text_layer_set_background_color(s_time_layer, GColorClear);
   text_layer_set_text_color(s_time_layer, GColorWhite);
   
   // Create GFont
-  s_time_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_PERFECT_DOS_20));
+  //s_time_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_PERFECT_DOS_22));
+  s_time_font = fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
+  text_layer_set_font(s_time_layer, s_time_font);
                                        
   // Improve layout to be more like watchface
-  //text_layer_set_font(s_time_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28));
-  text_layer_set_font(s_time_layer, s_time_font);
   text_layer_set_text_alignment(s_time_layer, GTextAlignmentCenter);
   
   // Add is as a child to the Window's root layer
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_time_layer));
-  
+
+  // Create date Layer
+  s_date_layer = text_layer_create(GRect(2, 119, 140, 26));
+  text_layer_set_background_color(s_date_layer, GColorClear);
+  text_layer_set_text_color(s_date_layer, GColorWhite);
+  text_layer_set_text_alignment(s_date_layer, GTextAlignmentLeft);
+  text_layer_set_font(s_date_layer, s_time_font);
+  layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_date_layer));
+
   // Create temperature Layer
-  s_weather_layer = text_layer_create(GRect(0, 130, 144, 25));
+  s_weather_layer = text_layer_create(GRect(2, 142, 140, 25));
   text_layer_set_background_color(s_weather_layer, GColorClear);
   #ifdef PBL_COLOR
     text_layer_set_text_color(s_weather_layer, GColorBabyBlueEyes);
   #else
     text_layer_set_text_color(s_weather_layer, GColorWhite);
   #endif
-  text_layer_set_text_alignment(s_weather_layer, GTextAlignmentCenter);
+  text_layer_set_text_alignment(s_weather_layer, GTextAlignmentLeft);
   text_layer_set_text(s_weather_layer, "Loading...");
   
   // Create second custom font, apply it and add to Window
-  s_weather_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_PERFECT_DOS_20));
+  //s_weather_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_PERFECT_DOS_20));
+  s_weather_font = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
   text_layer_set_font(s_weather_layer, s_weather_font);
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_weather_layer));
+
+  // Create Battery layer
+  s_battery_layer = layer_create(GRect(120, 0, 144, 168));
+  layer_set_update_proc(s_battery_layer, battery_layer_update_callback);
+  layer_add_child(window_get_root_layer(window), s_battery_layer);
+    
+  APP_LOG(APP_LOG_LEVEL_INFO, "Main windows load!");
 }
 
 static void main_window_unload(Window *window) {
@@ -74,18 +90,23 @@ static void update_time() {
   time_t temp = time(NULL);
   struct tm *tick_time = localtime(&temp);
   
-  // CVreate a longed-lived buffer
-  static char buffer[] = "00:00";
+  // Create longed-lived buffers
+  static char timebuffer[] = "00:00";
+  static char datebuffer[] = "December 31";                              
   
   // Write the current hours and minutes into the buffer
   if (clock_is_24h_style()) {
     // use 24 hour format  
-    strftime(buffer, sizeof("00:00"), "%H:%M", tick_time);
+    strftime(timebuffer, sizeof("00:00"), "%H:%M", tick_time);
   } else {
-    strftime(buffer, sizeof(buffer), "%I, %M", tick_time);
-  }
+    strftime(timebuffer, sizeof(timebuffer), "%I, %M", tick_time);
+  }  
   // Display the time on the TextLayer
-  text_layer_set_text(s_time_layer, buffer);
+  text_layer_set_text(s_time_layer, timebuffer);
+  
+  // Display the date
+  strftime(datebuffer, sizeof(datebuffer), "%B %d", tick_time);
+  text_layer_set_text(s_date_layer, datebuffer);  
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
@@ -103,6 +124,19 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
     // Send the message!
     app_message_outbox_send();
   }
+}
+
+static void handle_battery(BatteryChargeState charge_state) {
+  static char battery_text[] = "100% charged";
+
+  if (charge_state.is_charging) {
+    snprintf(battery_text, sizeof(battery_text), "charging");
+  } else {
+    snprintf(battery_text, sizeof(battery_text), "%d%% charged", charge_state.charge_percent);
+  }
+  //text_layer_set_text(s_battery_layer, battery_text);
+  save_battery_state(charge_state);
+  layer_mark_dirty(s_battery_layer);
 }
 
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
@@ -184,6 +218,8 @@ static void init() {
   // Show the window on the watch, with animated = true;
   window_stack_push(s_main_window, true);
   
+  APP_LOG(APP_LOG_LEVEL_INFO, "Show main window!");
+
   //Register with TickTimerService
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   
@@ -201,9 +237,17 @@ static void init() {
   
   // Subscribe to taps
   accel_tap_service_subscribe(tap_handler);
+  
+  // Subscribe to battery status
+  battery_state_service_subscribe(handle_battery);
+  
+  APP_LOG(APP_LOG_LEVEL_INFO, "Init!");
 }
 
 static void deinit() {
+  tick_timer_service_unsubscribe();
+  accel_tap_service_unsubscribe();
+  battery_state_service_unsubscribe();
   window_destroy(s_main_window);
 }
 
