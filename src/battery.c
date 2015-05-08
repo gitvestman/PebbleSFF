@@ -8,7 +8,7 @@ static GPath *s_battery_path_ptr = NULL;
 
 static const GPathInfo BOLT_PATH_INFO = {
   .num_points = 6,
-  .points = (GPoint []) {{15, 0}, {10, 26}, {20, 26}, {5, 60}, {10, 34}, {0, 34}}
+  .points = (GPoint []) {{15, 0}, {10, 31}, {20, 31}, {5, 70}, {10, 39}, {0, 39}}
 };
 
 static const GPathInfo BATTERY_PATH_INFO = {
@@ -46,15 +46,16 @@ void battery_layer_update_callback(Layer *layer, GContext *ctx) {
 
   if (charge_state.is_charging) {
     // Fill the bolt:
-    graphics_context_set_fill_color(ctx, GColorWhite);
+    graphics_context_set_fill_color(ctx,  COLOR_FALLBACK(GColorYellow, GColorWhite));
     gpath_draw_filled(ctx, s_bolt_path_ptr);
     // Stroke the bolt:
     graphics_context_set_stroke_color(ctx, GColorBlack);
     gpath_draw_outline(ctx, s_bolt_path_ptr);
-  } else {
-    int y = 144 - (131 * charge_state.charge_percent / 100);
+  } else if (charge_state.charge_percent > 0) {
+    int height = (137 * charge_state.charge_percent / 100);
     graphics_context_set_fill_color(ctx, COLOR_FALLBACK(GColorCeleste, GColorWhite));
     //graphics_fill_rect(ctx, GRect(6, 20, 16, 40), 2, GCornersAll );    
-    graphics_fill_rect(ctx, GRect(6, y, 15, 144), 2, GCornersAll );    
+    APP_LOG(APP_LOG_LEVEL_INFO, "Battery %d (%d%%)", height, charge_state.charge_percent);
+    graphics_fill_rect(ctx, GRect(6, 150 - height, 15, height + 7), 2, GCornersAll );    
   }
 }

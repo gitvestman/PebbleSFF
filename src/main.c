@@ -1,10 +1,12 @@
 #include <pebble.h>
 #include "main.h"
 #include "battery.h"
+#include "graph.h"
 
 static Window *s_main_window;
 static TextLayer *s_time_layer;
 static GFont s_time_font;
+static GFont s_date_font;
 static BitmapLayer *s_background_layer;
 static GBitmap *s_background_bitmap;
 static TextLayer *s_weather_layer;
@@ -26,13 +28,14 @@ static void main_window_load(Window *window) {
   layer_add_child(window_get_root_layer(window), bitmap_layer_get_layer(s_background_layer));
   
   // Create time textlayer
-  s_time_layer = text_layer_create(GRect(5,3,109,40));
-  text_layer_set_background_color(s_time_layer, GColorClear);
+  s_time_layer = text_layer_create(GRect(6,6,109,45));
+  text_layer_set_background_color(s_time_layer, COLOR_FALLBACK(GColorVeryLightBlue , GColorBlack));
   text_layer_set_text_color(s_time_layer, GColorWhite);
   
   // Create GFont
   //s_time_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_PERFECT_DOS_22));
-  s_time_font = fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
+  s_date_font = fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
+  s_time_font = fonts_get_system_font(FONT_KEY_BITHAM_30_BLACK);
   text_layer_set_font(s_time_layer, s_time_font);
                                        
   // Improve layout to be more like watchface
@@ -46,7 +49,7 @@ static void main_window_load(Window *window) {
   text_layer_set_background_color(s_date_layer, GColorClear);
   text_layer_set_text_color(s_date_layer, GColorWhite);
   text_layer_set_text_alignment(s_date_layer, GTextAlignmentLeft);
-  text_layer_set_font(s_date_layer, s_time_font);
+  text_layer_set_font(s_date_layer, s_date_font);
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_date_layer));
 
   // Create temperature Layer
@@ -70,7 +73,10 @@ static void main_window_load(Window *window) {
   s_battery_layer = layer_create(GRect(120, 0, 144, 168));
   layer_set_update_proc(s_battery_layer, battery_layer_update_callback);
   layer_add_child(window_get_root_layer(window), s_battery_layer);
+  save_battery_state(battery_state_service_peek());
     
+  init_graph(window);
+  
   APP_LOG(APP_LOG_LEVEL_INFO, "Main windows load!");
 }
 
@@ -79,7 +85,7 @@ static void main_window_unload(Window *window) {
   fonts_unload_custom_font(s_time_font);
   gbitmap_destroy(s_background_bitmap);
   bitmap_layer_destroy(s_background_layer);
-  
+  destroy_graph();
   // Destroy weather elements
   text_layer_destroy(s_weather_layer);
   fonts_unload_custom_font(s_weather_font);
@@ -180,9 +186,29 @@ static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
 }
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
-  switch (axis) {
+  static bool graph = false;
+  static long last_tap = 0;
+  static long first_tap = 0;
+
+  time_t seconds;
+  uint16_t milliseconds;
+  time_ms(&seconds, &milliseconds);
+  //APP_LOG(APP_LOG_LEVEL_INFO, "tap_handler: %u, %u", (uint16_t)seconds, milliseconds);  
+  
+  long time = seconds * 1000 + milliseconds;
+
+  if (time - last_tap < 100) {
+    last_tap = time;
+    return;
+  } else if (time - first_tap < 100 || time - first_tap > 500) {
+    first_tap = time;
+    last_tap = time; 
+    return;
+  }
+  
+  switch (axis) {    
   case ACCEL_AXIS_X:
-    if (direction > 0) {
+    if (direction > 0) {            
       APP_LOG(APP_LOG_LEVEL_INFO, "X axis positive.");
     } else {
       APP_LOG(APP_LOG_LEVEL_INFO, "X axis negative.");
@@ -202,6 +228,13 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
       APP_LOG(APP_LOG_LEVEL_INFO, "Z axis negative.");
     }
     break;
+  }
+  
+  graph = !graph;
+  if (graph) {
+    animate_graph();    
+  } else {
+    hide_graph();
   }
 }
 
@@ -245,6 +278,9 @@ static void init() {
 }
 
 static void deinit() {
+  // Stop any animation in progress
+  animation_unschedule_all();
+
   tick_timer_service_unsubscribe();
   accel_tap_service_unsubscribe();
   battery_state_service_unsubscribe();

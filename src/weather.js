@@ -5,6 +5,7 @@ Pebble.addEventListener('ready',
     
     // Get the initial weather
     getWeather();
+    getPPFundList();
   }
 );
 
@@ -65,6 +66,32 @@ function locationSuccess(pos) {
       );
     }      
   );
+}
+
+function getPPFundList() {
+  // Construct URL
+  var url = 'http://demo.fullmakt.nu/ppp_individ_ios/services/PrivateMobileService.asmx';
+  
+  var req = new XMLHttpRequest();
+  req.open('POST', url, true);
+  req.onload = function(e) {
+    if (req.readyState == 4 && req.status == 200) {
+      if(req.status == 200) {
+        console.log(req.responseText);
+      } else { console.log('Error'); }
+    }
+  };
+  req.setRequestHeader("Content-type","text/xml; charset-utf-8");
+  req.setRequestHeader('SOAPAction','http://pppension.se/GetPPFundList');
+  req.send(
+  '<?xml version="1.0" encoding="utf-8"?>' + 
+  '<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">'+
+    '<soap12:Body>'+
+      '<GetPPFundList xmlns="http://pppension.se/">'+
+        '<product>ITP2</product>'+
+      '</GetPPFundList>'+
+    '</soap12:Body>' +
+  '</soap12:Envelope>');
 }
 
 function locationError(err) {
