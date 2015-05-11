@@ -26,6 +26,22 @@ var xhrRequest = function (url, type, callback) {
   xhr.send();
 };
 
+function translate(conditions) {
+  switch(conditions) {
+    case "Clouds":
+      return "Mulet";
+      break;
+    case "Clear":
+      return "Klart";
+      break;
+    case "Rain":
+      return "Regn";
+      break;
+    default:
+      return conditions;
+  }  
+}
+
 function locationSuccess(pos) {
   // Construct URL
   var url = 'http://api.openweathermap.org/data/2.5/weather?lang=sv&lat=' +
@@ -52,7 +68,7 @@ function locationSuccess(pos) {
       // Assemble dictionary using our keys
       var dictionary = {
         'KEY_TEMPERATURE': temperature,
-        'KEY_CONDITIONS': conditions
+        'KEY_CONDITIONS': translate(conditions)
       };
       
       // Send to Pebble

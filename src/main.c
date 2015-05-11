@@ -28,14 +28,14 @@ static void main_window_load(Window *window) {
   layer_add_child(window_get_root_layer(window), bitmap_layer_get_layer(s_background_layer));
   
   // Create time textlayer
-  s_time_layer = text_layer_create(GRect(6,6,109,45));
+  s_time_layer = text_layer_create(GRect(4,6,110,45));
   text_layer_set_background_color(s_time_layer, COLOR_FALLBACK(GColorVeryLightBlue , GColorBlack));
   text_layer_set_text_color(s_time_layer, GColorWhite);
   
   // Create GFont
   //s_time_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_PERFECT_DOS_22));
   s_date_font = fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
-  s_time_font = fonts_get_system_font(FONT_KEY_BITHAM_30_BLACK);
+  s_time_font = fonts_get_system_font(FONT_KEY_BITHAM_34_MEDIUM_NUMBERS);
   text_layer_set_font(s_time_layer, s_time_font);
                                        
   // Improve layout to be more like watchface
@@ -61,7 +61,7 @@ static void main_window_load(Window *window) {
     text_layer_set_text_color(s_weather_layer, GColorWhite);
   #endif
   text_layer_set_text_alignment(s_weather_layer, GTextAlignmentLeft);
-  text_layer_set_text(s_weather_layer, "Loading...");
+  //text_layer_set_text(s_weather_layer, "Loading...");
   
   // Create second custom font, apply it and add to Window
   //s_weather_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_PERFECT_DOS_20));
@@ -69,12 +69,8 @@ static void main_window_load(Window *window) {
   text_layer_set_font(s_weather_layer, s_weather_font);
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_weather_layer));
 
-  // Create Battery layer
-  s_battery_layer = layer_create(GRect(120, 0, 144, 168));
-  layer_set_update_proc(s_battery_layer, battery_layer_update_callback);
-  layer_add_child(window_get_root_layer(window), s_battery_layer);
-  save_battery_state(battery_state_service_peek());
-    
+  init_battery(window);
+  
   init_graph(window);
   
   APP_LOG(APP_LOG_LEVEL_INFO, "Main windows load!");
@@ -85,10 +81,29 @@ static void main_window_unload(Window *window) {
   fonts_unload_custom_font(s_time_font);
   gbitmap_destroy(s_background_bitmap);
   bitmap_layer_destroy(s_background_layer);
+  destroy_battery_layer();
   destroy_graph();
   // Destroy weather elements
   text_layer_destroy(s_weather_layer);
   fonts_unload_custom_font(s_weather_font);
+}
+
+static char* getMonthName(int month) {
+  switch(month) {
+    case 0: return "Januari";
+    case 1: return "Februari";
+    case 2: return "Mars";
+    case 3: return "April";
+    case 4: return "Maj";
+    case 5: return "Juni";
+    case 6: return "Juli";
+    case 7: return "Augusti";
+    case 8: return "September";
+    case 9: return "October";
+    case 10: return "November";
+    case 11: return "December";
+    default: return "Trasigt";
+  }  
 }
 
 static void update_time() {
@@ -111,7 +126,8 @@ static void update_time() {
   text_layer_set_text(s_time_layer, timebuffer);
   
   // Display the date
-  strftime(datebuffer, sizeof(datebuffer), "%B %d", tick_time);
+  //strftime(datebuffer, sizeof(datebuffer), "%B %d", tick_time);
+  snprintf(datebuffer, sizeof(datebuffer), "%s %d", getMonthName(tick_time->tm_mon), tick_time->tm_mday);
   text_layer_set_text(s_date_layer, datebuffer);  
 }
 
@@ -132,19 +148,6 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   }
 }
 
-static void handle_battery(BatteryChargeState charge_state) {
-  static char battery_text[] = "100% charged";
-
-  if (charge_state.is_charging) {
-    snprintf(battery_text, sizeof(battery_text), "charging");
-  } else {
-    snprintf(battery_text, sizeof(battery_text), "%d%% charged", charge_state.charge_percent);
-  }
-  //text_layer_set_text(s_battery_layer, battery_text);
-  save_battery_state(charge_state);
-  layer_mark_dirty(s_battery_layer);
-}
-
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
     // Read first item
   Tuple *t = dict_read_first(iterator);
@@ -154,7 +157,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // Which key was received?
     switch(t->key) {
     case KEY_TEMPERATURE:
-      snprintf(temperature_buffer, sizeof(temperature_buffer), "%dC", (int)t->value->int32);
+      snprintf(temperature_buffer, sizeof(temperature_buffer), "%d°C", (int)t->value->int32);
       break;
     case KEY_CONDITIONS:
       snprintf(conditions_buffer, sizeof(conditions_buffer), "%s", t->value->cstring);
@@ -205,6 +208,9 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     last_tap = time; 
     return;
   }
+  
+  last_tap = 0;
+  first_tap = 0;
   
   switch (axis) {    
   case ACCEL_AXIS_X:
@@ -270,9 +276,6 @@ static void init() {
   
   // Subscribe to taps
   accel_tap_service_subscribe(tap_handler);
-  
-  // Subscribe to battery status
-  battery_state_service_subscribe(handle_battery);
   
   APP_LOG(APP_LOG_LEVEL_INFO, "Init!");
 }

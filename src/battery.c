@@ -26,8 +26,9 @@ void setup_my_paths(void) {
   gpath_move_to(s_battery_path_ptr, GPoint(3, 0));
 }
 
-void save_battery_state(BatteryChargeState state) {
+static void handle_battery(BatteryChargeState state) {
   charge_state = state;
+  layer_mark_dirty(s_battery_layer);
 }
 
 void battery_layer_update_callback(Layer *layer, GContext *ctx) {
@@ -41,7 +42,7 @@ void battery_layer_update_callback(Layer *layer, GContext *ctx) {
   gpath_draw_outline(ctx, s_battery_path_ptr);
   #ifndef PBL_COLOR
     gpath_move_to(s_battery_path_ptr, GPoint(2, 0));
-    gpath_draw_outline(ctx, s_battery_path_ptr);
+    gpath_draw_outline(ctx, s_battery_path_ptr); 
   #endif
 
   if (charge_state.is_charging) {
@@ -58,4 +59,19 @@ void battery_layer_update_callback(Layer *layer, GContext *ctx) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Battery %d (%d%%)", height, charge_state.charge_percent);
     graphics_fill_rect(ctx, GRect(6, 150 - height, 15, height + 7), 2, GCornersAll );    
   }
+}
+
+void init_battery(Window *window) {
+  // Subscribe to battery status
+  battery_state_service_subscribe(handle_battery);
+  
+  // Create Battery layer
+  s_battery_layer = layer_create(GRect(120, 0, 144, 168));
+  layer_set_update_proc(s_battery_layer, battery_layer_update_callback);
+  layer_add_child(window_get_root_layer(window), s_battery_layer);
+  charge_state = battery_state_service_peek();
+}
+
+void destroy_battery_layer() {
+  battery_state_service_unsubscribe();
 }
