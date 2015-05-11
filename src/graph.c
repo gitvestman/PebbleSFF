@@ -24,7 +24,7 @@ static const GPathInfo GRAPH_PATH_INFO = {
 static void anim_stopped_handler(Animation *animation, bool finished, void *context) {
   // Free the animation
 #ifdef PBL_PLATFORM_APLITE   
-  //property_animation_destroy(s_graph_animation);
+  property_animation_destroy((PropertyAnimation*)animation);
 #endif
 }
 
