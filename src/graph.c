@@ -1,8 +1,8 @@
 #include <pebble.h>
 #include "graph.h"
 
-#define BOX_WIDTH 115
-#define BOX_HEIGHT 50
+#define BOX_WIDTH 114
+#define BOX_HEIGHT 51
 #define TITLE_BAR_SIZE 16
 
 #define ANIM_DURATION 500
@@ -12,13 +12,15 @@ static Layer *s_graph_layer;
 static Layer *s_status_layer;
 static PropertyAnimation *s_graph_animation;
 static PropertyAnimation *s_status_animation;
-static char statusbuffer[30];
+char statusbuffer[30];
 
 static GPath *s_graph_path_ptr = NULL;
 
 static const GPathInfo GRAPH_PATH_INFO = {
-  .num_points = 8,
-  .points = (GPoint []) {{15, 50}, {25, 31}, {35, 32}, {45, 10}, {55, 39}, {65, 35}, {75, 42}, {85, 50}}
+  .num_points = 14,
+  .points = (GPoint []) {
+    {2, 50}, {2, 31}, {12, 32}, {22, 10}, {32, 39}, {42, 35}, {52, 42}, {62, 38}, 
+  {72, 40}, {82, 40}, {92, 40}, {102, 40}, {112, 40}, {112, 50}}
 };
 
 static void anim_stopped_handler(Animation *animation, bool finished, void *context) {
@@ -52,8 +54,8 @@ void status_layer_update_callback(Layer *layer, GContext* ctx) {
   graphics_context_set_stroke_color(ctx, GColorWhite);  
   graphics_context_set_text_color(ctx, GColorWhite);
   graphics_draw_round_rect(ctx, layer_get_bounds(layer), 2);
-  graphics_draw_text(ctx, statusbuffer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), 
-                    GRect(4, 2, 120, 40), GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+  graphics_draw_text(ctx, statusbuffer, fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21), 
+                    GRect(4, 0, 120, 40), GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 }
 
 void init_graph(Window *window) {
@@ -65,7 +67,7 @@ void init_graph(Window *window) {
   // Create Status Layer
   s_status_layer = layer_create(GRect(-120, 120, 120, 47));
   layer_add_child(window_get_root_layer(window), s_status_layer);
-  snprintf(statusbuffer, 30, "Stansat: 2345\nUser: 546"); 
+  snprintf(statusbuffer, 30, "Totalt: 0\nUser: 0"); 
   
   s_graph_path_ptr = gpath_create(&GRAPH_PATH_INFO);
   
@@ -77,6 +79,7 @@ void destroy_graph() {
   // Destroy Layer
   layer_destroy(s_graph_layer);
   layer_destroy(s_status_layer);
+  gpath_destroy(s_graph_path_ptr);
 }
 
 void schedule_graph_animation(GRect start, GRect finish) {
@@ -112,7 +115,7 @@ void animate_graph() {
   GRect start, finish;
 
   start = GRect(50, 60, 0, BOX_HEIGHT);
-  finish = GRect(4, 60, BOX_WIDTH, BOX_HEIGHT);
+  finish = GRect(3, 60, BOX_WIDTH, BOX_HEIGHT);
   
   schedule_graph_animation(start, finish);
 
@@ -141,4 +144,13 @@ void hide_graph() {
   starts = GRect(0, 120, 120, 47);
   
   schedule_status_animation(starts, finishs);
+}
+
+void update_graph(int *data) {
+  int i, y;
+  for (i = 0; i < 12; i++) {
+    y = 50 - data[i] / 5;    
+    GRAPH_PATH_INFO.points[i+1].y = y < 0 ? 0 : y;
+  }
+  layer_mark_dirty(s_graph_layer);
 }

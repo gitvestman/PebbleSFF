@@ -1,6 +1,10 @@
 {
     "appKeys": {
+        "KEY_BESTUSER": 2,
+        "KEY_BESTUSERCOUNT": 3,
         "KEY_CONDITIONS": 1,
+        "KEY_DAILYTOTAL": 4,
+        "KEY_HOURLYSTATS": 5,
         "KEY_TEMPERATURE": 0
     },
     "capabilities": [
@@ -12,6 +16,12 @@
     "projectType": "native",
     "resources": {
         "media": [
+            {
+                "file": "images/Sff-IconBW.png",
+                "menuIcon": true,
+                "name": "IMAGE_SFF_ICON",
+                "type": "png"
+            },
             {
                 "file": "images/Sff-PebbleBW1bit.png",
                 "name": "IMAGE_SFF",

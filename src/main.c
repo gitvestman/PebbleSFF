@@ -78,14 +78,14 @@ static void main_window_load(Window *window) {
 
 static void main_window_unload(Window *window) {
   text_layer_destroy(s_time_layer);
-  fonts_unload_custom_font(s_time_font);
+  //fonts_unload_custom_font(s_time_font);
   gbitmap_destroy(s_background_bitmap);
   bitmap_layer_destroy(s_background_layer);
   destroy_battery_layer();
   destroy_graph();
   // Destroy weather elements
   text_layer_destroy(s_weather_layer);
-  fonts_unload_custom_font(s_weather_font);
+  //fonts_unload_custom_font(s_weather_font);
 }
 
 static char* getMonthName(int month) {
@@ -141,26 +141,55 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
     app_message_outbox_begin(&iter);
 
     // Add a key-value pair
-    dict_write_uint8(iter, 0, 0);
+    dict_write_uint8(iter, 1, 1);
 
     // Send the message!
     app_message_outbox_send();
   }
 }
 
+static uint32_t convert_bytes_to_int(uint8_t* bytes) {
+  return (bytes[0] << 24) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3];
+} 
+
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
     // Read first item
   Tuple *t = dict_read_first(iterator);
-
+  static char bestUserBuffer[7];
+  static char hours[12];
+  static int data[12];
+  static int bestUserCount;
+  static int dailyTotal;
+  bool weather = false;
+  int i, j, length, start;
+  
   // For all items
   while(t != NULL) {
     // Which key was received?
     switch(t->key) {
     case KEY_TEMPERATURE:
       snprintf(temperature_buffer, sizeof(temperature_buffer), "%d°C", (int)t->value->int32);
+      weather = true;
       break;
     case KEY_CONDITIONS:
       snprintf(conditions_buffer, sizeof(conditions_buffer), "%s", t->value->cstring);
+      break;
+    case KEY_BESTUSER:
+      snprintf(bestUserBuffer, sizeof(bestUserBuffer), "%s", t->value->cstring);
+      break;
+    case KEY_BESTUSERCOUNT:
+      bestUserCount = t->value->int32;
+      break;
+    case KEY_DAILYTOTAL:
+      dailyTotal = t->value->int32;
+      break;
+    case KEY_HOURLYSTATS:
+      length = t->length / 5;
+      start = length > 12 ? length - 12 : 0;
+      for (i = start, j = 0; i < length; i++, j++) {
+        hours[j] = t->value->data[i*5];
+        data[j] = convert_bytes_to_int(&t->value->data[i*5 + 1]);
+      }
       break;
     default:
       APP_LOG(APP_LOG_LEVEL_ERROR, "Key %d not recognized!", (int)t->key);
@@ -171,9 +200,15 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     t = dict_read_next(iterator);
   }
   
-  // Assemble full string and display
-  snprintf(weather_layer_buffer, sizeof(weather_layer_buffer), "%s, %s", temperature_buffer, conditions_buffer);
-  text_layer_set_text(s_weather_layer, weather_layer_buffer);
+  if (weather) {
+    // Assemble full string and display
+    snprintf(weather_layer_buffer, sizeof(weather_layer_buffer), "%s, %s", temperature_buffer, conditions_buffer);
+    text_layer_set_text(s_weather_layer, weather_layer_buffer);    
+  } else {
+    snprintf(statusbuffer, sizeof(statusbuffer), "Totalt: %d\n%s: %d", dailyTotal, bestUserBuffer, bestUserCount);
+    update_graph(data);
+    (void)hours;
+  }
 }
 
 static void inbox_dropped_callback(AppMessageResult reason, void *context) {
@@ -191,7 +226,7 @@ static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
 static void tap_handler(AccelAxisType axis, int32_t direction) {
   static bool graph = false;
   static long last_tap = 0;
-  static long first_tap = 0;
+  //static long first_tap = 0;
 
   time_t seconds;
   uint16_t milliseconds;
@@ -200,17 +235,21 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
   
   long time = seconds * 1000 + milliseconds;
 
-  if (time - last_tap < 100) {
+  //APP_LOG(APP_LOG_LEVEL_INFO, "time - last_tap = %ld", time - last_tap);
+  
+  if (time - last_tap < 1000) {
     last_tap = time;
     return;
-  } else if (time - first_tap < 100 || time - first_tap > 500) {
+/*  } else if (time - first_tap < 100 || time - first_tap > 500) {
     first_tap = time;
     last_tap = time; 
-    return;
+    APP_LOG(APP_LOG_LEVEL_INFO, "first_tap = time - last_tap = %ld", time - last_tap);
+    return;*/
   }
-  
-  last_tap = 0;
-  first_tap = 0;
+
+  last_tap = time;
+  //last_tap = 0;
+  //first_tap = 0;
   
   switch (axis) {    
   case ACCEL_AXIS_X:
@@ -286,7 +325,6 @@ static void deinit() {
 
   tick_timer_service_unsubscribe();
   accel_tap_service_unsubscribe();
-  battery_state_service_unsubscribe();
   window_destroy(s_main_window);
 }
 

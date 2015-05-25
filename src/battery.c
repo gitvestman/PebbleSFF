@@ -56,7 +56,6 @@ void battery_layer_update_callback(Layer *layer, GContext *ctx) {
     int height = (137 * charge_state.charge_percent / 100);
     graphics_context_set_fill_color(ctx, COLOR_FALLBACK(GColorCeleste, GColorWhite));
     //graphics_fill_rect(ctx, GRect(6, 20, 16, 40), 2, GCornersAll );    
-    APP_LOG(APP_LOG_LEVEL_INFO, "Battery %d (%d%%)", height, charge_state.charge_percent);
     graphics_fill_rect(ctx, GRect(6, 150 - height, 15, height + 7), 2, GCornersAll );    
   }
 }
@@ -74,4 +73,5 @@ void init_battery(Window *window) {
 
 void destroy_battery_layer() {
   battery_state_service_unsubscribe();
+  layer_destroy(s_battery_layer);
 }

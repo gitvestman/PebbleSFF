@@ -1,20 +1,35 @@
 // Listen for when the watchface is opened
 Pebble.addEventListener('ready', 
-  function(e) {
-    console.log('PebbleKit JS ready!');
+  function(e) {    
+    console.log('PebbleKit JS ready: ' + JSON.stringify(e.playload));
     
-    // Get the initial weather
-    getWeather();
-    getPPFundList();
+    // Get the initial stats and weather
+    getFMKStats(function () {
+      getWeather();
+    });
   }
 );
 
 // Listen for when an AppMessage is received
 Pebble.addEventListener('appmessage',
   function(e) {
-    console.log('AppMessage received!');
-    getWeather();
+    console.log('AppMessage received: ' + JSON.stringify(e.playload));
+    getFMKStats(function () {
+      getWeather();
+    });
   }                     
+);
+
+Pebble.addEventListener('showConfiguration', function(e) {
+  // Show config page
+  Pebble.openURL('http://nod.fullmakt.nu/statistics/');
+});
+
+Pebble.addEventListener('webviewclosed',
+  function(e) {
+    var configuration = JSON.parse(decodeURIComponent(e.response));
+    console.log('Configuration window returned: ', JSON.stringify(configuration));
+  }
 );
 
 var xhrRequest = function (url, type, callback) {
@@ -30,16 +45,27 @@ function translate(conditions) {
   switch(conditions) {
     case "Clouds":
       return "Mulet";
-      break;
     case "Clear":
       return "Klart";
-      break;
     case "Rain":
       return "Regn";
-      break;
     default:
       return conditions;
   }  
+}
+
+function sendToPebble(dictionary, callback) {
+  // Send to Pebble
+  Pebble.sendAppMessage(dictionary,
+    function(e) {
+      console.log('Sent dictionary to Pebble successfully!');
+      if (typeof callback === 'function') callback();
+    },
+    function(e) {
+      console.log('Error sending dictonary to Pebble!');
+      if (typeof callback === 'function') callback();
+    }
+  );  
 }
 
 function locationSuccess(pos) {
@@ -54,8 +80,6 @@ function locationSuccess(pos) {
       // responseText contains a JSON object with weather info
       var json = JSON.parse(responseText);
       console.log(responseText);
-      var iconurl = 'http://openweathermap.org/img/w/' + json.weather[0].icon + '.png';
-      console.log(iconurl);
 
       // Temperature in Kelvin requires adjustment
       var temperature = Math.round(json.main.temp - 273.15);
@@ -72,49 +96,68 @@ function locationSuccess(pos) {
       };
       
       // Send to Pebble
-      Pebble.sendAppMessage(dictionary,
-        function(e) {
-          console.log('Weather info sent to Pebble successfully!');
-        },
-        function(e) {
-          console.log('Error sending weather info to Pebble!');
-        }
-      );
+      sendToPebble(dictionary);
     }      
   );
 }
 
-function getPPFundList() {
-  // Construct URL
-  var url = 'http://demo.fullmakt.nu/ppp_individ_ios/services/PrivateMobileService.asmx';
-  
-  var req = new XMLHttpRequest();
-  req.open('POST', url, true);
-  req.onload = function(e) {
-    if (req.readyState == 4 && req.status == 200) {
-      if(req.status == 200) {
-        console.log(req.responseText);
-      } else { console.log('Error'); }
-    }
-  };
-  req.setRequestHeader("Content-type","text/xml; charset-utf-8");
-  req.setRequestHeader('SOAPAction','http://pppension.se/GetPPFundList');
-  req.send(
-  '<?xml version="1.0" encoding="utf-8"?>' + 
-  '<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">'+
-    '<soap12:Body>'+
-      '<GetPPFundList xmlns="http://pppension.se/">'+
-        '<product>ITP2</product>'+
-      '</GetPPFundList>'+
-    '</soap12:Body>' +
-  '</soap12:Envelope>');
+function getInt32Bytes( x ) {
+    var bytes = [];
+    var i = 4;
+    do {
+      bytes[--i] = x & (255);
+      x = x>>8;
+    } while ( i );
+    return bytes;
+}
+
+function getFMKStats(callback) {
+  var url = '';
+  console.log(url);
+
+  // Send request to OpenWeatherMap
+  xhrRequest(url, 'GET', 
+    function(responseText) {
+      // responseText contains a JSON object with weather info
+      var json = JSON.parse(responseText);
+      console.log(responseText);
+
+      var bestUser = json.BestUser;
+      console.log('BestUser is ' + bestUser);
+      var bestUserCount = json.BestUserCount;
+      console.log('BestUserCount is ' + bestUserCount);
+      var dailyTotal = json.DailyTotal;
+      console.log('DailyTotal is ' + dailyTotal);      
+      //var hourlyStats  = json.HourlyStats;
+      var byteArray = [];
+      if (json.HourlyStats) {
+        for(var i = 0; i < json.HourlyStats.length; i += 2) {
+          byteArray.push(json.HourlyStats[i]);
+          byteArray.push.apply(byteArray, getInt32Bytes(json.HourlyStats[i+1]));
+        }
+      }
+      //console.log('HourlyStats('+json.HourlyStats.length+'):'+json.HourlyStats[0]+", "+json.HourlyStats[1]);
+      //console.log('Array('+byteArray.length+'):'+byteArray[0]+", "+byteArray[1]+", "+byteArray[2]+", "+byteArray[3]+", "+byteArray[4]);
+      
+      // Assemble dictionary using our keys
+      var dictionary = {
+        'KEY_BESTUSER': bestUser,
+        'KEY_BESTUSERCOUNT': bestUserCount,
+        'KEY_DAILYTOTAL': dailyTotal,
+        'KEY_HOURLYSTATS': byteArray
+      };
+
+      // Send to Pebble
+      sendToPebble(dictionary, callback);
+    }      
+  );
 }
 
 function locationError(err) {
   console.log('Error requesting location!');
 }
 
-function getWeather() {
+function getWeather(callback) {
   navigator.geolocation.getCurrentPosition(
     locationSuccess,
     locationError,
